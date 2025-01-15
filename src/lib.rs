@@ -2077,7 +2077,7 @@ impl<'a> Face<'a> {
     /// `OutlineBuilder`'s output.
     ///
     /// `gvar`, `glyf`, `CFF` and `CFF2` tables are supported.
-    /// And they will be accesses in this specific order.
+    /// And they will be accessed in this specific order.
     ///
     /// This method is affected by variation axes.
     ///
