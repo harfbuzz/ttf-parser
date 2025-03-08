@@ -825,8 +825,8 @@ impl<'a> Table<'a> {
 
     /// Returns `true` if the current table has version 0.
     ///
-    /// A simple table can only emit `outline_glyph` and `paint`
-    /// [`Painter`] methods.
+    /// A simple table can only emit `outline_glyph`, `paint`, `push_clip`, and
+    /// `pop_clip` [`Painter`] methods.
     pub fn is_simple(&self) -> bool {
         self.version == 0
     }
@@ -937,15 +937,16 @@ impl<'a> Table<'a> {
         let layers = self.layers.slice(start..end)?;
 
         for layer in layers {
+            painter.outline_glyph(layer.glyph_id);
+            painter.push_clip();
             if layer.palette_index == 0xFFFF {
                 // A special case.
-                painter.outline_glyph(layer.glyph_id);
                 painter.paint(Paint::Solid(foreground_color));
             } else {
                 let color = self.palettes.get(palette, layer.palette_index)?;
-                painter.outline_glyph(layer.glyph_id);
                 painter.paint(Paint::Solid(color));
             }
+            painter.pop_clip();
         }
 
         Some(())

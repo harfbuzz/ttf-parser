@@ -65,23 +65,35 @@ fn basic() {
     assert_eq!(
         paint(2).unwrap(), vec![
             Command::OutlineGlyph(GlyphId(12)),
+            Command::PushClip,
             Command::Paint(c.clone()),
+            Command::PopClip,
             Command::OutlineGlyph(GlyphId(13)),
-            Command::Paint(a.clone())]
-    );
+            Command::PushClip,
+            Command::Paint(a.clone()),
+            Command::PopClip
+        ]);
 
     assert_eq!(paint(3).unwrap(), vec![
         Command::OutlineGlyph(GlyphId(10)),
+        Command::PushClip,
         Command::Paint(c.clone()),
+        Command::PopClip,
         Command::OutlineGlyph(GlyphId(11)),
+        Command::PushClip,
         Command::Paint(b.clone()),
+        Command::PopClip,
         Command::OutlineGlyph(GlyphId(12)),
+        Command::PushClip,
         Command::Paint(c.clone()),
+        Command::PopClip,
     ]);
 
     assert_eq!(paint(7).unwrap(), vec![
         Command::OutlineGlyph(GlyphId(11)),
+        Command::PushClip,
         Command::Paint(b.clone()),
+        Command::PopClip,
     ]);
 }
 
