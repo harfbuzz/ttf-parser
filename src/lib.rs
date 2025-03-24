@@ -912,71 +912,112 @@ impl core::fmt::Debug for RawFace<'_> {
 ///
 /// This allows loading font faces not only from TrueType font files,
 /// but from any source. Mainly used for parsing WOFF.
-#[allow(missing_docs)]
 #[allow(missing_debug_implementations)]
 #[derive(Clone, Default)]
 pub struct RawFaceTables<'a> {
     // Mandatory tables.
+    /// Font Header, global information about the font, version number, creation and modification dates, revision number, and basic typographic data.
     pub head: &'a [u8],
+    /// Horizontal Header, information needed to layout fonts whose characters are written horizontally.
     pub hhea: &'a [u8],
+    /// Maximum Profile, establishes the memory requirements for a font.
     pub maxp: &'a [u8],
 
+    /// Bitmap data table
     pub bdat: Option<&'a [u8]>,
+    /// Bitmap Location, availability of bitmaps at requested point sizes.
     pub bloc: Option<&'a [u8]>,
+    /// Color Bitmap Data, used to embed color bitmap glyph data.
     pub cbdt: Option<&'a [u8]>,
+    /// Color Bitmap Location, provides locators for embedded color bitmaps.
     pub cblc: Option<&'a [u8]>,
+    /// Compact Font Format 1
     pub cff: Option<&'a [u8]>,
+    /// Character to Glyph Mapping, maps character codes to glyph indices.
     pub cmap: Option<&'a [u8]>,
+    /// Color, adds support for multi-colored glyphs.
     pub colr: Option<&'a [u8]>,
+    /// Color Palette, a set of one or more color palettes.
     pub cpal: Option<&'a [u8]>,
+    /// Embedded Bitmap Data, embed monochrome or grayscale bitmap glyph data.
     pub ebdt: Option<&'a [u8]>,
+    /// Embedded Bitmap Location, provides embedded bitmap locators.
     pub eblc: Option<&'a [u8]>,
+    /// Glyph Outline, data that defines the appearance of the glyphs.
     pub glyf: Option<&'a [u8]>,
+    /// Horizontal Metrics, metric information for the horizontal layout each of the glyphs.
     pub hmtx: Option<&'a [u8]>,
+    /// Kern, values that adjust the intercharacter spacing for glyphs.
     pub kern: Option<&'a [u8]>,
+    /// Glyph Data Location, stores the offsets to the locations of the glyphs.
     pub loca: Option<&'a [u8]>,
+    /// Font Names, human-readable names for features and settings, copyright, font names, style names, and other information.
     pub name: Option<&'a [u8]>,
+    /// OS/2 Compatibility, a set of metrics that are required by Windows.
     pub os2: Option<&'a [u8]>,
+    /// Glyph Name and PostScript Font, information needed to use a TrueType font on a PostScript printer.
     pub post: Option<&'a [u8]>,
+    /// Extended Bitmaps, provides access to bitmap data in a standard graphics format (such as PNG, JPEG, TIFF).
     pub sbix: Option<&'a [u8]>,
+    /// Style Attributes, describes design attributes that distinguish font-style variants within a font family.
     pub stat: Option<&'a [u8]>,
+    /// Scalable Vector Graphics, contains SVG descriptions for some or all of the glyphs in the font.
     pub svg: Option<&'a [u8]>,
+    /// Vertical Header, information needed for vertical fonts.
     pub vhea: Option<&'a [u8]>,
+    /// Vertical Metrics, specifies the vertical spacing for each glyph in an AAT vertical font.
     pub vmtx: Option<&'a [u8]>,
+    /// Vertical Origin, the y coordinate of a glyph’s vertical origin, this can only be used in CFF or CFF2 fonts.
     pub vorg: Option<&'a [u8]>,
 
+    /// Glyph Definition, provides various glyph properties used in OpenType Layout processing.
     #[cfg(feature = "opentype-layout")]
     pub gdef: Option<&'a [u8]>,
+    /// Glyph Positioning, precise control over glyph placement for sophisticated text layout in each supported script.
     #[cfg(feature = "opentype-layout")]
     pub gpos: Option<&'a [u8]>,
+    /// Glyph Substitution, provides data for substitution of glyphs for appropriate rendering of different scripts.
     #[cfg(feature = "opentype-layout")]
     pub gsub: Option<&'a [u8]>,
+    /// Mathematical Typesetting, font-specific information necessary for math formula layout.
     #[cfg(feature = "opentype-layout")]
     pub math: Option<&'a [u8]>,
 
+    /// Anchor Point Table, defines anchor points.
     #[cfg(feature = "apple-layout")]
     pub ankr: Option<&'a [u8]>,
+    /// Feature Name Table, font's text features.
     #[cfg(feature = "apple-layout")]
     pub feat: Option<&'a [u8]>,
+    /// Kerx, extended kerning table.
     #[cfg(feature = "apple-layout")]
     pub kerx: Option<&'a [u8]>,
+    /// Extended Glyph Metamorphosis, specifies a set of transformations that can apply to the glyphs of your font.
     #[cfg(feature = "apple-layout")]
     pub morx: Option<&'a [u8]>,
+    /// Tracking, allows AAT fonts to adjust to normal interglyph spacing.
     #[cfg(feature = "apple-layout")]
     pub trak: Option<&'a [u8]>,
 
+    /// Axis Variation Table, allows the font to modify the mapping between axis values and these normalized values.
     #[cfg(feature = "variable-fonts")]
     pub avar: Option<&'a [u8]>,
+    /// Compact Font Format 2
     #[cfg(feature = "variable-fonts")]
     pub cff2: Option<&'a [u8]>,
+    /// Font Variations Table, global information of which variation axes are included in the font.
     #[cfg(feature = "variable-fonts")]
     pub fvar: Option<&'a [u8]>,
+    /// Glyph Variations Table, includes all of the data required for stylizing the glyphs.
     #[cfg(feature = "variable-fonts")]
     pub gvar: Option<&'a [u8]>,
+    /// Horizontal Metrics Variations Table, used in variable fonts to provide glyph variations for horizontal glyph metrics values.
     #[cfg(feature = "variable-fonts")]
     pub hvar: Option<&'a [u8]>,
+    /// Metrics Variations Table, used in variable fonts to provide glyph variations for font-wide metric values found in other font tables.
     #[cfg(feature = "variable-fonts")]
     pub mvar: Option<&'a [u8]>,
+    /// Vertical Metrics Variations Table, used in variable fonts to provide glyph variations for vertical glyph metric values.
     #[cfg(feature = "variable-fonts")]
     pub vvar: Option<&'a [u8]>,
 }
