@@ -420,7 +420,7 @@ impl<'a> Table<'a> {
         &self,
         axis: Tag,
         match_value: Option<Fixed>,
-    ) -> Option<AxisValueSubtable> {
+    ) -> Option<AxisValueSubtable<'_>> {
         for subtable in self.subtables() {
             match subtable {
                 AxisValueSubtable::Format1(AxisValueSubtableFormat1 {
