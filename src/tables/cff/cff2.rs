@@ -250,6 +250,7 @@ fn parse_char_string(
     let mut inner_builder = Builder {
         builder,
         bbox: RectF::new(),
+        transform: None,
     };
 
     let stack = ArgumentsStack {

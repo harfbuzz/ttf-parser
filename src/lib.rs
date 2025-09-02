@@ -1337,7 +1337,7 @@ impl<'a> Face<'a> {
 
             bdat,
             cbdt,
-            cff: raw_tables.cff.and_then(cff::Table::parse),
+            cff: raw_tables.cff.and_then(|data| cff::Table::parse(data, head.units_per_em)),
             cmap: raw_tables.cmap.and_then(cmap::Table::parse),
             colr,
             ebdt,

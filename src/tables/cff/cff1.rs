@@ -122,7 +122,7 @@ pub(crate) struct CIDMetadata<'a> {
 
 /// An affine transformation matrix.
 #[allow(missing_docs)]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Matrix {
     pub sx: f32,
     pub ky: f32,
@@ -374,9 +374,12 @@ fn parse_char_string(
         local_subrs,
     };
 
+    let transform = (metadata.units_per_em, metadata.matrix());
+    let transform = (transform != (1000, Matrix::default())).then_some(transform);
     let mut inner_builder = Builder {
         builder,
         bbox: RectF::new(),
+        transform,
     };
 
     let stack = ArgumentsStack {
@@ -846,11 +849,15 @@ pub struct Table<'a> {
     matrix: Matrix,
     char_strings: Index<'a>,
     kind: FontKind<'a>,
+
+    // Copy of Face::units_per_em().
+    // Required to do glyph outlining, since coordinates must be scaled up by this before applying the `matrix`.
+    units_per_em: u16,
 }
 
 impl<'a> Table<'a> {
     /// Parses a table from raw data.
-    pub fn parse(data: &'a [u8]) -> Option<Self> {
+    pub fn parse(data: &'a [u8], units_per_em: u16) -> Option<Self> {
         let mut s = Stream::new(data);
 
         // Parse Header.
@@ -930,6 +937,7 @@ impl<'a> Table<'a> {
             matrix,
             char_strings,
             kind,
+            units_per_em,
         })
     }
 
