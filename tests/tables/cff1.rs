@@ -312,7 +312,7 @@ fn unsupported_version() {
         UInt8(0), // absolute offset
     ]);
 
-    assert!(cff::Table::parse(&data, 1000).is_none());
+    assert!(cff::Table::parse(&data).is_none());
 }
 
 #[test]
@@ -360,7 +360,7 @@ fn non_default_header_size() {
         UInt8(operator::ENDCHAR),
     ]);
 
-    let table = cff::Table::parse(&data, 1000).unwrap();
+    let table = cff::Table::parse(&data).unwrap();
     let mut builder = Builder(String::new());
     let rect = table.outline(GlyphId(0), &mut builder).unwrap();
 
@@ -377,7 +377,7 @@ macro_rules! test_cs_with_subrs {
         #[test]
         fn $name() {
             let data = gen_cff($glob, $loc, $values);
-            let table = cff::Table::parse(&data, 1000).unwrap();
+            let table = cff::Table::parse(&data).unwrap();
             let mut builder = Builder(String::new());
             let rect = table.outline(GlyphId(0), &mut builder).unwrap();
 
@@ -398,7 +398,7 @@ macro_rules! test_cs_err {
         #[test]
         fn $name() {
             let data = gen_cff(&[], &[], $values);
-            let table = cff::Table::parse(&data, 1000).unwrap();
+            let table = cff::Table::parse(&data).unwrap();
             let mut builder = Builder(String::new());
             let res = table.outline(GlyphId(0), &mut builder);
             assert_eq!(res.unwrap_err(), $err);
@@ -575,7 +575,7 @@ test_cs!(vv_curve_to_with_x, &[
 #[test]
 fn only_endchar() {
     let data = gen_cff(&[], &[], &[UInt8(operator::ENDCHAR)]);
-    let table = cff::Table::parse(&data, 1000).unwrap();
+    let table = cff::Table::parse(&data).unwrap();
     let mut builder = Builder(String::new());
     assert!(table.outline(GlyphId(0), &mut builder).is_err());
 }
@@ -800,7 +800,7 @@ fn endchar_in_subr_with_extra_data_1() {
         ]
     );
 
-    let table = cff::Table::parse(&data, 1000).unwrap();
+    let table = cff::Table::parse(&data).unwrap();
     let mut builder = Builder(String::new());
     let res = table.outline(GlyphId(0), &mut builder);
     assert_eq!(res.unwrap_err(), CFFError::DataAfterEndChar);
@@ -827,7 +827,7 @@ fn endchar_in_subr_with_extra_data_2() {
         ]
     );
 
-    let table = cff::Table::parse(&data, 1000).unwrap();
+    let table = cff::Table::parse(&data).unwrap();
     let mut builder = Builder(String::new());
     let res = table.outline(GlyphId(0), &mut builder);
     assert_eq!(res.unwrap_err(), CFFError::DataAfterEndChar);
@@ -854,7 +854,7 @@ fn subr_without_return() {
         ]
     );
 
-    let table = cff::Table::parse(&data, 1000).unwrap();
+    let table = cff::Table::parse(&data).unwrap();
     let mut builder = Builder(String::new());
     let res = table.outline(GlyphId(0), &mut builder);
     assert_eq!(res.unwrap_err(), CFFError::DataAfterEndChar);
@@ -876,7 +876,7 @@ fn recursive_local_subr() {
         ]
     );
 
-    let table = cff::Table::parse(&data, 1000).unwrap();
+    let table = cff::Table::parse(&data).unwrap();
     let mut builder = Builder(String::new());
     let res = table.outline(GlyphId(0), &mut builder);
     assert_eq!(res.unwrap_err(), CFFError::NestingLimitReached);
@@ -898,7 +898,7 @@ fn recursive_global_subr() {
         ]
     );
 
-    let table = cff::Table::parse(&data, 1000).unwrap();
+    let table = cff::Table::parse(&data).unwrap();
     let mut builder = Builder(String::new());
     let res = table.outline(GlyphId(0), &mut builder);
     assert_eq!(res.unwrap_err(), CFFError::NestingLimitReached);
@@ -923,7 +923,7 @@ fn recursive_mixed_subr() {
         ]
     );
 
-    let table = cff::Table::parse(&data, 1000).unwrap();
+    let table = cff::Table::parse(&data).unwrap();
     let mut builder = Builder(String::new());
     let res = table.outline(GlyphId(0), &mut builder);
     assert_eq!(res.unwrap_err(), CFFError::NestingLimitReached);
@@ -952,7 +952,7 @@ fn zero_char_string_offset() {
         UInt8(top_dict_operator::CHAR_STRINGS_OFFSET as u8),
     ]);
 
-    assert!(cff::Table::parse(&data, 1000).is_none());
+    assert!(cff::Table::parse(&data).is_none());
 }
 
 #[test]
@@ -978,7 +978,7 @@ fn invalid_char_string_offset() {
         UInt8(top_dict_operator::CHAR_STRINGS_OFFSET as u8),
     ]);
 
-    assert!(cff::Table::parse(&data, 1000).is_none());
+    assert!(cff::Table::parse(&data).is_none());
 }
 
 // TODO: return from main
