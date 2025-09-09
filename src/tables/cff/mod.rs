@@ -45,23 +45,29 @@ pub enum CFFError {
 pub(crate) struct Builder<'a> {
     builder: &'a mut dyn OutlineBuilder,
     bbox: RectF,
+    transform: Option<(u16, cff1::Matrix)>,
 }
 
 impl<'a> Builder<'a> {
     #[inline]
     fn move_to(&mut self, x: f32, y: f32) {
+        let (x, y) = self.transform(x, y);
         self.bbox.extend_by(x, y);
         self.builder.move_to(x, y);
     }
 
     #[inline]
     fn line_to(&mut self, x: f32, y: f32) {
+        let (x, y) = self.transform(x, y);
         self.bbox.extend_by(x, y);
         self.builder.line_to(x, y);
     }
 
     #[inline]
     fn curve_to(&mut self, x1: f32, y1: f32, x2: f32, y2: f32, x: f32, y: f32) {
+        let (x1, y1) = self.transform(x1, y1);
+        let (x2, y2) = self.transform(x2, y2);
+        let (x, y) = self.transform(x, y);
         self.bbox.extend_by(x1, y1);
         self.bbox.extend_by(x2, y2);
         self.bbox.extend_by(x, y);
@@ -71,6 +77,21 @@ impl<'a> Builder<'a> {
     #[inline]
     fn close(&mut self) {
         self.builder.close();
+    }
+
+    #[inline]
+    fn transform(&self, x: f32, y: f32) -> (f32, f32) {
+        let (units_per_em, matrix) = if let Some(transform) = self.transform {
+            transform
+        } else {
+            return (x, y);
+        };
+        let (mut tx, mut ty) = (x, y);
+        tx = tx * matrix.sx + ty * matrix.kx + matrix.tx;
+        ty = tx * matrix.ky + ty * matrix.sy + matrix.ty;
+        tx *= units_per_em as f32;
+        ty *= units_per_em as f32;
+        (tx, ty)
     }
 }
 
