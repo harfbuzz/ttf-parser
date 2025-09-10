@@ -873,9 +873,6 @@ impl<'a> Table<'a> {
     /// The same as [`Table::parse`], with the difference that it allows you to
     /// manually pass the units per em of the font, which is needed to properly
     /// scale certain fonts with a non-identity matrix.
-    ///
-    /// This method only exists temporarily and will be removed with the next
-    /// minor release.
     pub(crate) fn parse_with_upem(data: &'a [u8], units_per_em: u16) -> Option<Self> {
         Self::parse_inner(data, Some(units_per_em))
     }
