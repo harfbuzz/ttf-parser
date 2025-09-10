@@ -374,8 +374,13 @@ fn parse_char_string(
         local_subrs,
     };
 
-    let transform = (metadata.units_per_em, metadata.matrix());
-    let transform = (transform != (1000, Matrix::default())).then_some(transform);
+    let (upem, transform) = (metadata.units_per_em, metadata.matrix());
+    let transform = if let Some(upem) = upem {
+        ((upem, transform) != (1000, Matrix::default())).then_some((upem, transform))
+    } else {
+        None
+    };
+
     let mut inner_builder = Builder {
         builder,
         bbox: RectF::new(),
@@ -802,7 +807,11 @@ fn parse_sid_metadata<'a>(
     Some(FontKind::SID(metadata))
 }
 
-fn parse_cid_metadata(data: &[u8], top_dict: TopDict, number_of_glyphs: u16) -> Option<FontKind<'_>> {
+fn parse_cid_metadata(
+    data: &[u8],
+    top_dict: TopDict,
+    number_of_glyphs: u16,
+) -> Option<FontKind<'_>> {
     let (charset_offset, fd_array_offset, fd_select_offset) = match (
         top_dict.charset_offset,
         top_dict.fd_array_offset,
@@ -852,12 +861,23 @@ pub struct Table<'a> {
 
     // Copy of Face::units_per_em().
     // Required to do glyph outlining, since coordinates must be scaled up by this before applying the `matrix`.
-    units_per_em: u16,
+    units_per_em: Option<u16>,
 }
 
 impl<'a> Table<'a> {
     /// Parses a table from raw data.
-    pub fn parse(data: &'a [u8], units_per_em: u16) -> Option<Self> {
+    pub fn parse(data: &'a [u8]) -> Option<Self> {
+        Self::parse_inner(data, None)
+    }
+
+    /// The same as [`Table::parse`], with the difference that it allows you to
+    /// manually pass the units per em of the font, which is needed to properly
+    /// scale certain fonts with a non-identity matrix.
+    pub(crate) fn parse_with_upem(data: &'a [u8], units_per_em: u16) -> Option<Self> {
+        Self::parse_inner(data, Some(units_per_em))
+    }
+
+    fn parse_inner(data: &'a [u8], units_per_em: Option<u16>) -> Option<Self> {
         let mut s = Stream::new(data);
 
         // Parse Header.
