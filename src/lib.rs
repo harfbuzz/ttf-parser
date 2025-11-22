@@ -1354,7 +1354,7 @@ impl<'a> Face<'a> {
                 .and_then(|data| sbix::Table::parse(maxp.number_of_glyphs, data)),
             stat: raw_tables.stat.and_then(stat::Table::parse),
             svg: raw_tables.svg.and_then(svg::Table::parse),
-            vhea: raw_tables.vhea.and_then(vhea::Table::parse),
+            vhea,
             vmtx,
             vorg: raw_tables.vorg.and_then(vorg::Table::parse),
 
