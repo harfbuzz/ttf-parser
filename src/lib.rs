@@ -2363,8 +2363,10 @@ impl<'a> Face<'a> {
             return None;
         }
 
+        let mut success = false;
         for (i, var_axis) in self.variation_axes().into_iter().enumerate() {
             if var_axis.tag == axis {
+                success = true;
                 self.coordinates.data[i] = var_axis.normalized_value(value);
 
                 if let Some(avar) = self.tables.avar {
@@ -2373,7 +2375,7 @@ impl<'a> Face<'a> {
             }
         }
 
-        Some(())
+        success.then_some(())
     }
 
     /// Returns the current normalized variation coordinates.
