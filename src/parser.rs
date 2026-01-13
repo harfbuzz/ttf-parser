@@ -651,12 +651,15 @@ impl<'a, T: FromSlice<'a>> Iterator for LazyOffsetArrayIter16<'a, T> {
     type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.index < self.array.len() {
+        while self.index < self.array.len() {
             self.index += 1;
-            self.array.get(self.index - 1)
-        } else {
-            None
+            match self.array.get(self.index - 1) {
+                None => {}
+                s => return s,
+            }
         }
+
+        None
     }
 
     #[inline]
