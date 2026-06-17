@@ -66,7 +66,7 @@ enum VariationTuples<'a> {
     },
     #[cfg(feature = "gvar-alloc")]
     Heap {
-        vec: std::vec::Vec<VariationTuple<'a>>,
+        vec: alloc::vec::Vec<VariationTuple<'a>>,
     },
 }
 
@@ -87,7 +87,7 @@ impl<'a> VariationTuples<'a> {
         if capacity > MAX_STACK_TUPLES_LEN {
             // ... and we're currently on the stack, move to the heap.
             if let Self::Stack { headers, len } = self {
-                let mut vec = std::vec::Vec::with_capacity(capacity as usize);
+                let mut vec = alloc::vec::Vec::with_capacity(capacity as usize);
                 for header in headers.iter_mut().take(*len as usize) {
                     let header = core::mem::take(header);
                     vec.push(header);

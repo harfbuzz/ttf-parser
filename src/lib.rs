@@ -49,6 +49,9 @@ Font parsing starts with a [`Face`].
 #[macro_use]
 extern crate std;
 
+#[cfg(feature = "alloc")]
+extern crate alloc;
+
 #[cfg(not(any(feature = "std", feature = "no-std-float")))]
 compile_error!("You have to activate either the `std` or the `no-std-float` feature.");
 
@@ -795,8 +798,7 @@ impl core::fmt::Display for FaceParsingError {
     }
 }
 
-#[cfg(feature = "std")]
-impl std::error::Error for FaceParsingError {}
+impl core::error::Error for FaceParsingError {}
 
 /// A raw font face.
 ///

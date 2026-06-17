@@ -1,10 +1,10 @@
 //! A [Naming Table](
 //! https://docs.microsoft.com/en-us/typography/opentype/spec/name) implementation.
 
-#[cfg(feature = "std")]
-use std::string::String;
-#[cfg(feature = "std")]
-use std::vec::Vec;
+#[cfg(feature = "alloc")]
+use alloc::string::String;
+#[cfg(feature = "alloc")]
+use alloc::vec::Vec;
 
 use crate::parser::{FromData, LazyArray16, Offset, Offset16, Stream};
 use crate::Language;
@@ -140,7 +140,7 @@ impl<'a> Name<'a> {
     /// - Unicode Platform ID
     /// - Windows Platform ID + Symbol
     /// - Windows Platform ID + Unicode BMP
-    #[cfg(feature = "std")]
+    #[cfg(feature = "alloc")]
     #[inline(never)]
     pub fn to_string(&self) -> Option<String> {
         if self.is_unicode() {
@@ -156,7 +156,7 @@ impl<'a> Name<'a> {
         is_unicode_encoding(self.platform_id, self.encoding_id)
     }
 
-    #[cfg(feature = "std")]
+    #[cfg(feature = "alloc")]
     #[inline(never)]
     fn name_from_utf16_be(&self) -> Option<String> {
         let mut name: Vec<u16> = Vec::new();
@@ -182,7 +182,7 @@ impl<'a> Name<'a> {
     }
 }
 
-#[cfg(feature = "std")]
+#[cfg(feature = "alloc")]
 impl<'a> core::fmt::Debug for Name<'a> {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         let name = self.to_string();
@@ -197,7 +197,7 @@ impl<'a> core::fmt::Debug for Name<'a> {
     }
 }
 
-#[cfg(not(feature = "std"))]
+#[cfg(not(feature = "alloc"))]
 impl<'a> core::fmt::Debug for Name<'a> {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         f.debug_struct("Name")
