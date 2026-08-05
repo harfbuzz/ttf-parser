@@ -691,6 +691,16 @@ pub extern "C" fn ttfp_get_glyph_name(
 ) -> bool {
     match face_from_ptr(face).glyph_name(glyph_id) {
         Some(n) => {
+            // The output buffer is 256 bytes and must fit the name plus a
+            // trailing '\0'. Unlike `post` names, a CFF glyph name has no
+            // length cap (the String INDEX is uncapped), so a name that does
+            // not leave room for the terminator would index out of bounds
+            // below and panic across the `extern "C"` boundary. Reject it
+            // instead, returning the documented failure value.
+            if n.len() >= 256 {
+                return false;
+            }
+
             // TODO: memcpy?
             let name = unsafe { std::slice::from_raw_parts_mut(name as *mut _, 256) };
             for (i, c) in n.bytes().enumerate() {
@@ -952,10 +962,148 @@ pub extern "C" fn ttfp_has_non_default_variation_coordinates(face: *const ttfp_f
 
 #[cfg(test)]
 mod tests {
+    use ttf_parser::GlyphId;
+
     #[test]
     fn sizes() {
         assert_eq!(std::mem::size_of::<ttf_parser::Rect>(), 8);
         assert_eq!(std::mem::size_of::<ttf_parser::LineMetrics>(), 4);
         assert_eq!(std::mem::size_of::<ttf_parser::ScriptMetrics>(), 8);
+    }
+
+    // A glyph name longer than the 256-byte output buffer must return `false`
+    // instead of indexing out of bounds (which aborts across `extern "C"`).
+    // CFF String INDEX entries are uncapped, so this is reachable from a font.
+    #[test]
+    fn glyph_name_too_long_returns_false() {
+        let font = build_cff_font_with_glyph_name(300);
+
+        let mut face_buf = vec![0u8; super::ttfp_face_size_of()];
+        let face_ptr = face_buf.as_mut_ptr() as *mut std::os::raw::c_void;
+        assert!(super::ttfp_face_init(
+            font.as_ptr() as *const _,
+            font.len(),
+            0,
+            face_ptr,
+        ));
+        let face = face_ptr as *const super::ttfp_face;
+
+        // The documented output buffer size.
+        let mut name = [0u8; 256];
+
+        // Glyph 1 has a 300-byte CFF name: it cannot fit, so this must fail
+        // gracefully rather than abort.
+        let ok = super::ttfp_get_glyph_name(face, GlyphId(1), name.as_mut_ptr() as *mut _);
+        assert!(!ok, "over-long glyph name must return false, not abort");
+
+        // Regression guard: a normal short name (glyph 0 = ".notdef") still works.
+        let ok = super::ttfp_get_glyph_name(face, GlyphId(0), name.as_mut_ptr() as *mut _);
+        assert!(ok);
+        let nul = name.iter().position(|&b| b == 0).unwrap();
+        assert_eq!(&name[..nul], b".notdef");
+    }
+
+    /// Builds a minimal, valid OTF (SFNT/OTTO) with `head`, `hhea`, `maxp` and a
+    /// CFF table whose glyph 1 is mapped (charset format 0) to a String INDEX
+    /// entry of `name_len` ASCII bytes. Used to reach a CFF glyph name longer
+    /// than 255 bytes, which no `post`-table font can produce.
+    fn build_cff_font_with_glyph_name(name_len: usize) -> Vec<u8> {
+        // CFF DICT integer operand encoding (only the cases we need).
+        fn cff_int(val: i32) -> Vec<u8> {
+            if (-107..=107).contains(&val) {
+                vec![(val + 139) as u8]
+            } else if (108..=1131).contains(&val) {
+                let n = val - 108;
+                vec![((n >> 8) + 247) as u8, (n & 0xFF) as u8]
+            } else {
+                let mut v = vec![28];
+                v.extend_from_slice(&(val as i16).to_be_bytes());
+                v
+            }
+        }
+
+        // --- CFF table ---
+        let charset_off = (26 + name_len) as i32;
+        let charstr_off = (29 + name_len) as i32;
+        let mut charset_enc = cff_int(charset_off);
+        charset_enc.push(15); // charset operator
+        let mut charstr_enc = cff_int(charstr_off);
+        charstr_enc.push(17); // CharStrings operator
+        let dict_len = charset_enc.len() + charstr_enc.len();
+
+        let mut cff = Vec::new();
+        cff.extend_from_slice(&[1, 0, 4, 0]); // header
+        cff.extend_from_slice(&[0, 0]); // Name INDEX (empty)
+        // Top DICT INDEX (1 entry)
+        cff.extend_from_slice(&1u16.to_be_bytes());
+        cff.push(1); // offSize
+        cff.push(1); // offset[0]
+        cff.push((1 + dict_len) as u8); // offset[1]
+        cff.extend_from_slice(&charset_enc);
+        cff.extend_from_slice(&charstr_enc);
+        // String INDEX: 1 entry of `name_len` 'A' bytes
+        cff.extend_from_slice(&1u16.to_be_bytes());
+        cff.push(2); // offSize = 2
+        cff.extend_from_slice(&1u16.to_be_bytes()); // offset[0]
+        cff.extend_from_slice(&((1 + name_len) as u16).to_be_bytes()); // offset[1]
+        cff.extend(std::iter::repeat(b'A').take(name_len));
+        // Global Subrs INDEX (empty)
+        cff.extend_from_slice(&[0, 0]);
+        // Charset: format 0, glyph 1 -> SID 391 (first custom string)
+        assert_eq!(cff.len(), charset_off as usize);
+        cff.push(0);
+        cff.extend_from_slice(&391u16.to_be_bytes());
+        // CharStrings INDEX: 2 glyphs, each a single `endchar`
+        assert_eq!(cff.len(), charstr_off as usize);
+        cff.extend_from_slice(&2u16.to_be_bytes());
+        cff.push(1); // offSize
+        cff.extend_from_slice(&[1, 2, 3]); // offsets
+        cff.extend_from_slice(&[14, 14]); // endchar, endchar
+
+        // --- head / hhea / maxp ---
+        let mut head = vec![0u8; 54];
+        head[0..4].copy_from_slice(&0x0001_0000u32.to_be_bytes()); // version
+        head[12..16].copy_from_slice(&0x5F0F_3CF5u32.to_be_bytes()); // magic
+        head[18..20].copy_from_slice(&1000u16.to_be_bytes()); // unitsPerEm
+        // indexToLocFormat / glyphDataFormat left 0.
+
+        let mut hhea = vec![0u8; 36];
+        hhea[0..4].copy_from_slice(&0x0001_0000u32.to_be_bytes()); // version
+        hhea[34..36].copy_from_slice(&2u16.to_be_bytes()); // numberOfHMetrics
+
+        let mut maxp = Vec::new();
+        maxp.extend_from_slice(&0x0000_5000u32.to_be_bytes()); // version 0.5 (CFF)
+        maxp.extend_from_slice(&2u16.to_be_bytes()); // numGlyphs
+
+        // --- assemble SFNT ---
+        let header_size = 12 + 4 * 16;
+        let pad = |len: usize| (4 - (len % 4)) % 4;
+        let head_off = header_size;
+        let hhea_off = head_off + head.len() + pad(head.len());
+        let maxp_off = hhea_off + hhea.len() + pad(hhea.len());
+        let cff_off = maxp_off + maxp.len() + pad(maxp.len());
+
+        let mut font = Vec::new();
+        font.extend_from_slice(&0x4F54_544Fu32.to_be_bytes()); // 'OTTO'
+        font.extend_from_slice(&4u16.to_be_bytes()); // numTables
+        font.extend_from_slice(&64u16.to_be_bytes()); // searchRange
+        font.extend_from_slice(&2u16.to_be_bytes()); // entrySelector
+        font.extend_from_slice(&0u16.to_be_bytes()); // rangeShift
+        let record = |tag: &[u8; 4], off: usize, len: usize, f: &mut Vec<u8>| {
+            f.extend_from_slice(tag);
+            f.extend_from_slice(&0u32.to_be_bytes()); // checksum (unchecked)
+            f.extend_from_slice(&(off as u32).to_be_bytes());
+            f.extend_from_slice(&(len as u32).to_be_bytes());
+        };
+        record(b"CFF ", cff_off, cff.len(), &mut font);
+        record(b"head", head_off, head.len(), &mut font);
+        record(b"hhea", hhea_off, hhea.len(), &mut font);
+        record(b"maxp", maxp_off, maxp.len(), &mut font);
+        for (data, len) in [(&head, head.len()), (&hhea, hhea.len()), (&maxp, maxp.len())] {
+            font.extend_from_slice(data);
+            font.extend(std::iter::repeat(0).take(pad(len)));
+        }
+        font.extend_from_slice(&cff);
+        font
     }
 }
