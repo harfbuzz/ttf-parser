@@ -980,7 +980,7 @@ impl<'a> LookupSubtable<'a> for PositioningSubtable<'a> {
             6 => MarkToMarkAdjustment::parse(data).map(Self::MarkToMark),
             7 => ContextLookup::parse(data).map(Self::Context),
             8 => ChainedContextLookup::parse(data).map(Self::ChainContext),
-            9 => crate::ggg::parse_extension_lookup(data, Self::parse),
+            9 => crate::ggg::parse_extension_lookup(data, 9, Self::parse),
             _ => None,
         }
     }

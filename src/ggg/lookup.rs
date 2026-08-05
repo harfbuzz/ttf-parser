@@ -150,6 +150,7 @@ impl FromData for LookupFlags {
 
 pub(crate) fn parse_extension_lookup<'a, T: 'a>(
     data: &'a [u8],
+    ext_kind: u16,
     parse: impl FnOnce(&'a [u8], u16) -> Option<T>,
 ) -> Option<T> {
     let mut s = Stream::new(data);
@@ -157,9 +158,75 @@ pub(crate) fn parse_extension_lookup<'a, T: 'a>(
     match format {
         1 => {
             let kind = s.read::<u16>()?;
+            // An Extension subtable must reference a lookup type other than the
+            // extension type itself. The OpenType spec requires extensionLookupType
+            // to "be set to any lookup type other than the extension lookup type".
+            // Without this check, a self-referential extension (e.g. kind == ext_kind
+            // with extensionOffset == 0) makes `parse` re-enter this function forever
+            // and overflow the stack on malformed fonts.
+            if kind == ext_kind {
+                return None;
+            }
             let offset = s.read::<Offset32>()?.to_usize();
             parse(data.get(offset..)?, kind)
         }
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::LookupSubtable;
+    use crate::gpos::PositioningSubtable;
+    use crate::gsub::SubstitutionSubtable;
+
+    // A GSUB Extension subtable (type 7) whose inner extensionLookupType is
+    // itself 7 and whose extensionOffset is 0 references its own bytes. Before
+    // the recursion guard this made the parser re-enter itself forever and
+    // overflow the stack. It must now be rejected without recursing.
+    #[test]
+    fn gsub_self_referential_extension_is_rejected() {
+        let data: &[u8] = &[
+            0x00, 0x01, // format = 1
+            0x00, 0x07, // extensionLookupType = 7 (nested extension, invalid)
+            0x00, 0x00, 0x00, 0x00, // extensionOffset = 0 (points at self)
+        ];
+        assert!(SubstitutionSubtable::parse(data, 7).is_none());
+    }
+
+    // Same self-reference for a GPOS Extension subtable (type 9).
+    #[test]
+    fn gpos_self_referential_extension_is_rejected() {
+        let data: &[u8] = &[
+            0x00, 0x01, // format = 1
+            0x00, 0x09, // extensionLookupType = 9 (nested extension, invalid)
+            0x00, 0x00, 0x00, 0x00, // extensionOffset = 0 (points at self)
+        ];
+        assert!(PositioningSubtable::parse(data, 9).is_none());
+    }
+
+    // A well-formed GSUB Extension subtable wrapping a real Single Substitution
+    // must still resolve to its inner subtable: the guard rejects only the
+    // extension-of-extension case, not legitimate extensions.
+    #[test]
+    fn gsub_valid_extension_still_resolves() {
+        let data: &[u8] = &[
+            // Extension subtable
+            0x00, 0x01, // format = 1
+            0x00, 0x01, // extensionLookupType = 1 (SingleSubst)
+            0x00, 0x00, 0x00, 0x08, // extensionOffset = 8
+            // Inner SingleSubstitution, format 1 (at offset 8)
+            0x00, 0x01, // substFormat = 1
+            0x00, 0x06, // coverageOffset = 6 (relative to inner)
+            0x00, 0x00, // deltaGlyphID = 0
+            // Coverage table, format 1 (at inner offset 6)
+            0x00, 0x01, // coverageFormat = 1
+            0x00, 0x01, // glyphCount = 1
+            0x00, 0x41, // glyphArray[0] = 65
+        ];
+        assert!(matches!(
+            SubstitutionSubtable::parse(data, 7),
+            Some(SubstitutionSubtable::Single(_))
+        ));
     }
 }

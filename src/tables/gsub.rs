@@ -262,7 +262,7 @@ impl<'a> LookupSubtable<'a> for SubstitutionSubtable<'a> {
             4 => LigatureSubstitution::parse(data).map(Self::Ligature),
             5 => ContextLookup::parse(data).map(Self::Context),
             6 => ChainedContextLookup::parse(data).map(Self::ChainContext),
-            7 => crate::ggg::parse_extension_lookup(data, Self::parse),
+            7 => crate::ggg::parse_extension_lookup(data, 7, Self::parse),
             8 => ReverseChainSingleSubstitution::parse(data).map(Self::ReverseChainSingle),
             _ => None,
         }
