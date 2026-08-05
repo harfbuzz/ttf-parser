@@ -5,6 +5,22 @@
 [![Rust 1.59+](https://img.shields.io/badge/rust-1.59+-orange.svg)](https://www.rust-lang.org)
 ![](https://img.shields.io/badge/unsafe-forbidden-brightgreen.svg)
 
+> [!IMPORTANT]
+> **This crate is deprecated and is no longer actively maintained.**
+>
+> **New projects should use [fontations](https://github.com/googlefonts/fontations)** —
+> [`skrifa`](https://crates.io/crates/skrifa) for font parsing, metrics and glyph
+> outlines, and [`read-fonts`](https://crates.io/crates/read-fonts) for low-level
+> table access. Development effort across the Rust text ecosystem has moved there,
+> and it is where new features and fixes will land.
+>
+> **Existing users** who need a drop-in continuation of this API can use
+> [`xberg-ttf-parser`](https://crates.io/crates/xberg-ttf-parser)
+> ([source](https://github.com/xberg-io/xberg/tree/main/crates/xberg-ttf-parser)),
+> a maintained fork of v0.25.1. It keeps the same API and feature flags, and
+> carries the fix PRs that were still open here. The xberg team intends to
+> maintain it for the foreseeable future.
+
 A high-level, safe, zero-allocation font parser for
 [TrueType](https://docs.microsoft.com/en-us/typography/truetype/),
 [OpenType](https://docs.microsoft.com/en-us/typography/opentype/spec/), and
