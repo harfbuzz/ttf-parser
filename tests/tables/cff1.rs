@@ -1006,6 +1006,146 @@ fn invalid_char_string_offset() {
     assert!(cff::Table::parse(&data).is_none());
 }
 
+// --- Total subroutine-invocation budget (work-amplification guard) ---------
+//
+// The interpreter caps the recursion *depth* (STACK_LIMIT), but a charstring can
+// stay within that depth while re-entering the same global subroutines an
+// exponential number of times (~fanout^depth). The existing `gen_cff` helper only
+// supports a single subr, so these tests build a small multi-subr CFF (one glyph,
+// a chain of `depth` global subrs, each calling the next `fanout` times) directly.
+
+fn sb_int(val: i32) -> Vec<u8> {
+    match val {
+        -107..=107 => vec![(val + 139) as u8],
+        108..=1131 => { let n = val - 108; vec![((n >> 8) + 247) as u8, (n & 0xFF) as u8] }
+        -1131..=-108 => { let n = -val - 108; vec![((n >> 8) + 251) as u8, (n & 0xFF) as u8] }
+        -32768..=32767 => { let mut v = vec![28]; v.extend_from_slice(&(val as i16).to_be_bytes()); v }
+        _ => { let mut v = vec![29]; v.extend_from_slice(&val.to_be_bytes()); v }
+    }
+}
+
+fn sb_index(objects: &[Vec<u8>]) -> Vec<u8> {
+    if objects.is_empty() {
+        return vec![0, 0];
+    }
+    let mut offsets = Vec::with_capacity(objects.len() + 1);
+    let mut cur = 1usize;
+    offsets.push(cur);
+    for obj in objects {
+        cur += obj.len();
+        offsets.push(cur);
+    }
+    let max_off = *offsets.last().unwrap();
+    let off_size = if max_off <= 0xFF { 1 } else if max_off <= 0xFFFF { 2 }
+        else if max_off <= 0xFFFFFF { 3 } else { 4 };
+    let mut out = Vec::new();
+    out.extend_from_slice(&(objects.len() as u16).to_be_bytes());
+    out.push(off_size as u8);
+    for off in offsets {
+        for shift in (0..off_size).rev() {
+            out.push(((off >> (shift * 8)) & 0xFF) as u8);
+        }
+    }
+    for obj in objects {
+        out.extend_from_slice(obj);
+    }
+    out
+}
+
+fn sb_call_gsubr(index: usize, n_subrs: usize) -> Vec<u8> {
+    let bias = if n_subrs < 1240 { 107 } else if n_subrs < 33900 { 1131 } else { 32768 };
+    let mut out = sb_int(index as i32 - bias);
+    out.push(operator::CALL_GLOBAL_SUBROUTINE);
+    out
+}
+
+// One glyph. `depth` global subrs chained; subr[i] calls subr[i+1] `fanout` times;
+// the deepest subr draws a line so a non-amplifying font produces a real outline.
+fn sb_build_cff(fanout: usize, depth: usize) -> Vec<u8> {
+    let n_subrs = depth;
+    let mut subrs = Vec::new();
+    for level in 0..depth {
+        let mut body = Vec::new();
+        if level + 1 < depth {
+            for _ in 0..fanout {
+                body.extend_from_slice(&sb_call_gsubr(level + 1, n_subrs));
+            }
+        } else {
+            // Deepest subr: draw a line so the whole glyph outlines to something.
+            body.extend_from_slice(&sb_int(50));
+            body.extend_from_slice(&sb_int(50));
+            body.push(operator::LINE_TO);
+        }
+        body.push(operator::RETURN);
+        subrs.push(body);
+    }
+    let global_subrs = sb_index(&subrs);
+
+    let mut root = Vec::new();
+    root.extend_from_slice(&sb_int(100));
+    root.push(operator::HORIZONTAL_MOVE_TO);
+    for _ in 0..fanout {
+        root.extend_from_slice(&sb_call_gsubr(0, n_subrs));
+    }
+    root.push(operator::ENDCHAR);
+    let charstrings = sb_index(&[root]);
+
+    let name_index = vec![0, 0];
+    let string_index = vec![0, 0];
+    let charset = vec![0]; // format 0
+
+    let mut dict_data = Vec::new();
+    loop {
+        let top_dict = sb_index(&[dict_data.clone()]);
+        let charset_off =
+            4 + name_index.len() + top_dict.len() + string_index.len() + global_subrs.len();
+        let charstrings_off = charset_off + charset.len();
+        let mut next = Vec::new();
+        next.extend_from_slice(&sb_int(charset_off as i32));
+        next.push(top_dict_operator::CHARSET_OFFSET as u8);
+        next.extend_from_slice(&sb_int(charstrings_off as i32));
+        next.push(top_dict_operator::CHAR_STRINGS_OFFSET as u8);
+        if next == dict_data {
+            break;
+        }
+        dict_data = next;
+    }
+    let top_dict = sb_index(&[dict_data]);
+
+    let mut cff = Vec::new();
+    cff.extend_from_slice(&[1, 0, 4, 0]);
+    cff.extend_from_slice(&name_index);
+    cff.extend_from_slice(&top_dict);
+    cff.extend_from_slice(&string_index);
+    cff.extend_from_slice(&global_subrs);
+    cff.extend_from_slice(&charset);
+    cff.extend_from_slice(&charstrings);
+    cff
+}
+
+#[test]
+fn subr_call_budget_bounds_fanout_amplification() {
+    // fanout=4, depth=8 stays within STACK_LIMIT (max nesting depth 8 < 10) but
+    // performs sum_{L=1}^{8} 4^L = 87380 subroutine invocations, exceeding the
+    // 64000 budget. Without the cap this expands as ~fanout^depth (unbounded work).
+    let data = sb_build_cff(4, 8);
+    let table = cff::Table::parse(&data).unwrap();
+    let mut builder = Builder(String::new());
+    let res = table.outline(GlyphId(0), &mut builder);
+    assert_eq!(res.unwrap_err(), CFFError::SubroutineCallLimitReached);
+}
+
+#[test]
+fn subr_call_budget_allows_normal_chain() {
+    // A non-amplifying chain of the same depth (fanout=1 => 8 invocations) is far
+    // below the budget and must still outline normally.
+    let data = sb_build_cff(1, 8);
+    let table = cff::Table::parse(&data).unwrap();
+    let mut builder = Builder(String::new());
+    let bbox = table.outline(GlyphId(0), &mut builder).unwrap();
+    assert_eq!(bbox, rect(100, 0, 150, 50));
+}
+
 // TODO: return from main
 // TODO: return without endchar
 // TODO: data after return

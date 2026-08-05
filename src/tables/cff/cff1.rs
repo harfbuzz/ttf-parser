@@ -29,6 +29,16 @@ const MAX_OPERANDS_LEN: usize = 48;
 const STACK_LIMIT: u8 = 10;
 const MAX_ARGUMENTS_STACK_LEN: usize = 48;
 
+// `STACK_LIMIT` bounds only the nesting *depth* of subroutine calls. A charstring
+// can stay within that depth while re-entering subroutines an exponential number
+// of times (~fanout^depth), which amplifies the amount of work by orders of
+// magnitude on attacker-controlled fonts. So we additionally bound the *total*
+// number of subroutine invocations per glyph. Outlining a single glyph of a real
+// font invokes at most a few thousand subroutines, so this generous cap never
+// triggers on legitimate input while turning the exponential blowup into a linear
+// one.
+const MAX_SUBROUTINE_CALLS: u32 = 64_000;
+
 const TWO_BYTE_OPERATOR_MARK: u8 = 12;
 
 /// Enumerates some operators defined in the Adobe Technical Note #5177.
@@ -351,6 +361,24 @@ struct CharStringParserContext<'a> {
     has_seac: bool,
     glyph_id: GlyphId, // Required to parse local subroutine in CID fonts.
     local_subrs: Option<Index<'a>>,
+    /// Total number of local/global subroutine invocations for this glyph.
+    /// Bounded by `MAX_SUBROUTINE_CALLS` to prevent work amplification.
+    subr_calls: u32,
+}
+
+impl CharStringParserContext<'_> {
+    /// Counts a subroutine invocation and enforces the total-invocation budget.
+    ///
+    /// This complements the `STACK_LIMIT` depth check: it caps the *total* amount
+    /// of subroutine execution, not just how deeply calls are nested.
+    #[inline]
+    fn track_subr_call(&mut self) -> Result<(), CFFError> {
+        self.subr_calls += 1;
+        if self.subr_calls > MAX_SUBROUTINE_CALLS {
+            return Err(CFFError::SubroutineCallLimitReached);
+        }
+        Ok(())
+    }
 }
 
 fn parse_char_string(
@@ -373,6 +401,7 @@ fn parse_char_string(
         has_seac: false,
         glyph_id,
         local_subrs,
+        subr_calls: 0,
     };
 
     let (upem, transform) = (metadata.units_per_em, metadata.matrix());
@@ -490,6 +519,8 @@ fn _parse_char_string(
                 if depth == STACK_LIMIT {
                     return Err(CFFError::NestingLimitReached);
                 }
+
+                ctx.track_subr_call()?;
 
                 // Parse and remember the local subroutine for the current glyph.
                 // Since it's a pretty complex task, we're doing it only when
@@ -656,6 +687,8 @@ fn _parse_char_string(
                 if depth == STACK_LIMIT {
                     return Err(CFFError::NestingLimitReached);
                 }
+
+                ctx.track_subr_call()?;
 
                 let subroutine_bias = calc_subroutine_bias(ctx.metadata.global_subrs.len());
                 let index = conv_subroutine_index(p.stack.pop(), subroutine_bias)?;

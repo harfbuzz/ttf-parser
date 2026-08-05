@@ -27,6 +27,7 @@ pub enum CFFError {
     MissingEndChar,
     DataAfterEndChar,
     NestingLimitReached,
+    SubroutineCallLimitReached,
     ArgumentsStackLimitReached,
     InvalidArgumentsStackLength,
     BboxOverflow,

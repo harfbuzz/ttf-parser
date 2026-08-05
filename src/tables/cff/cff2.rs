@@ -23,6 +23,16 @@ const MAX_OPERANDS_LEN: usize = 513;
 const STACK_LIMIT: u8 = 10;
 const MAX_ARGUMENTS_STACK_LEN: usize = 513;
 
+// `STACK_LIMIT` bounds only the nesting *depth* of subroutine calls. A charstring
+// can stay within that depth while re-entering subroutines an exponential number
+// of times (~fanout^depth), which amplifies the amount of work by orders of
+// magnitude on attacker-controlled fonts. So we additionally bound the *total*
+// number of subroutine invocations per glyph. Outlining a single glyph of a real
+// font invokes at most a few thousand subroutines, so this generous cap never
+// triggers on legitimate input while turning the exponential blowup into a linear
+// one.
+const MAX_SUBROUTINE_CALLS: u32 = 64_000;
+
 const TWO_BYTE_OPERATOR_MARK: u8 = 12;
 
 // https://docs.microsoft.com/en-us/typography/opentype/spec/cff2charstr#4-charstring-operators
@@ -203,9 +213,25 @@ struct CharStringParserContext<'a> {
     had_vsindex: bool,
     had_blend: bool,
     stems_len: u32,
+    /// Total number of local/global subroutine invocations for this glyph.
+    /// Bounded by `MAX_SUBROUTINE_CALLS` to prevent work amplification.
+    subr_calls: u32,
 }
 
 impl CharStringParserContext<'_> {
+    /// Counts a subroutine invocation and enforces the total-invocation budget.
+    ///
+    /// This complements the `STACK_LIMIT` depth check: it caps the *total* amount
+    /// of subroutine execution, not just how deeply calls are nested.
+    #[inline]
+    fn track_subr_call(&mut self) -> Result<(), CFFError> {
+        self.subr_calls += 1;
+        if self.subr_calls > MAX_SUBROUTINE_CALLS {
+            return Err(CFFError::SubroutineCallLimitReached);
+        }
+        Ok(())
+    }
+
     fn update_scalars(&mut self, index: u16) -> Result<(), CFFError> {
         self.scalars.clear();
 
@@ -242,6 +268,7 @@ fn parse_char_string(
         had_vsindex: false,
         had_blend: false,
         stems_len: 0,
+        subr_calls: 0,
     };
 
     // Load scalars at default index.
@@ -331,6 +358,8 @@ fn _parse_char_string(
                 if depth == STACK_LIMIT {
                     return Err(CFFError::NestingLimitReached);
                 }
+
+                ctx.track_subr_call()?;
 
                 let subroutine_bias = calc_subroutine_bias(ctx.metadata.local_subrs.len());
                 let index = conv_subroutine_index(p.stack.pop(), subroutine_bias)?;
@@ -438,6 +467,8 @@ fn _parse_char_string(
                 if depth == STACK_LIMIT {
                     return Err(CFFError::NestingLimitReached);
                 }
+
+                ctx.track_subr_call()?;
 
                 let subroutine_bias = calc_subroutine_bias(ctx.metadata.global_subrs.len());
                 let index = conv_subroutine_index(p.stack.pop(), subroutine_bias)?;
