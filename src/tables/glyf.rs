@@ -683,7 +683,7 @@ impl<'a> Table<'a> {
         } else if number_of_contours < 0 {
             // Composite glyph.
             let components = CompositeGlyphIter::new(s.tail()?);
-            Some(components.clone().count() as u16)
+            Some(components.count() as u16)
         } else {
             // An empty glyph.
             None

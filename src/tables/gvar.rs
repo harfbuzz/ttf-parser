@@ -295,7 +295,7 @@ fn parse_variation_tuples<'a>(
         let point_numbers = if header.has_private_point_numbers {
             PackedPointsIter::new(&mut serialized_s)?
         } else {
-            shared_point_numbers.clone()
+            shared_point_numbers
         };
 
         // TODO: this
@@ -305,8 +305,8 @@ fn parse_variation_tuples<'a>(
         // associated with that point number. All of these deltas must be applied
         // cumulatively to the given point.
 
-        let deltas_count = if let Some(point_numbers) = point_numbers.clone() {
-            u16::try_from(point_numbers.clone().count()).ok()?
+        let deltas_count = if let Some(point_numbers) = point_numbers {
+            u16::try_from(point_numbers.count()).ok()?
         } else {
             points_len
         };
@@ -597,7 +597,7 @@ mod packed_points {
 
         #[inline]
         pub fn restart(self) -> Self {
-            let mut iter = self.iter.clone();
+            let mut iter = self.iter;
             iter.offset = 0;
             iter.state = State::Control;
             iter.points_left = 0;
@@ -1473,8 +1473,8 @@ fn infer_deltas(
     } else {
         // If not, find the last point with delta in the current contour.
         let mut last_point = None;
-        let mut deltas = tuple.deltas.clone();
-        for (point, is_set) in points.clone().zip(points_set.clone()) {
+        let mut deltas = tuple.deltas;
+        for (point, is_set) in points.clone().zip(points_set) {
             if is_set {
                 if let Some((x_delta, y_delta)) = deltas.next() {
                     last_point = Some(PointAndDelta {
@@ -1502,8 +1502,8 @@ fn infer_deltas(
     if !curr_point.last_point {
         // If the current point is not the last one in the contour,
         // find the first set delta in the current contour.
-        let mut deltas = tuple.deltas.clone();
-        for (point, is_set) in points.clone().zip(points_set.clone()) {
+        let mut deltas = tuple.deltas;
+        for (point, is_set) in points.clone().zip(points_set) {
             if is_set {
                 if let Some((x_delta, y_delta)) = deltas.next() {
                     next_point = Some(PointAndDelta {
@@ -1532,9 +1532,9 @@ fn infer_deltas(
         // doesn't allow implementing a reverse iterator.
         // So we have to parse everything once again.
 
-        let mut all_points = all_points.clone();
-        let mut deltas = tuple.deltas.clone().restart();
-        let mut points_set = points_set.clone().restart();
+        let mut all_points = all_points;
+        let mut deltas = tuple.deltas.restart();
+        let mut points_set = points_set.restart();
 
         let mut contour = 0;
         while let (Some(point), Some(is_set)) = (all_points.next(), points_set.next()) {
