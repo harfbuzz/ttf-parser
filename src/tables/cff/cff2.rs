@@ -303,6 +303,11 @@ fn parse_char_string(
     _parse_char_string(&mut ctx, data, 0, &mut parser)?;
     // let _ = _parse_char_string(&mut ctx, data, 0.0, 0.0, &mut stack, 0, &mut inner_builder)?;
 
+    // CFF2 has no endchar, so the last contour ends with the charstring.
+    if !parser.is_first_move_to {
+        parser.builder.close();
+    }
+
     let bbox = parser.builder.bbox;
 
     // Check that bbox was changed.

@@ -334,9 +334,31 @@ fn minimal_glyph_outlines() {
 
     let (result, path) = outline(&Cff2::new(vec![char_string]).build());
 
-    // CFF2 has no `endchar`, and the parser never closes the last contour.
-    assert_eq!(path, "M 100 0 L 150 50 ");
+    // CFF2 has no `endchar`; the last contour is closed when the charstring ends.
+    assert_eq!(path, "M 100 0 L 150 50 Z ");
     assert_eq!(result.unwrap(), rect(100, 0, 150, 50));
+}
+
+// Every contour must be closed, the last one included: CFF1 closes it on `endchar`, which CFF2
+// lacks. Rasterizers that don't close paths themselves fill an open last contour solid.
+#[test]
+fn every_contour_is_closed() {
+    let mut char_string = Vec::new();
+    char_string.extend_from_slice(&cs_int(100));
+    char_string.push(operator::HORIZONTAL_MOVE_TO);
+    char_string.extend_from_slice(&cs_int(50));
+    char_string.extend_from_slice(&cs_int(50));
+    char_string.push(operator::LINE_TO);
+    char_string.extend_from_slice(&cs_int(100));
+    char_string.push(operator::VERTICAL_MOVE_TO);
+    char_string.extend_from_slice(&cs_int(-50));
+    char_string.extend_from_slice(&cs_int(50));
+    char_string.push(operator::LINE_TO);
+
+    let (result, path) = outline(&Cff2::new(vec![char_string]).build());
+
+    assert_eq!(path, "M 100 0 L 150 50 Z M 150 150 L 100 200 Z ");
+    assert_eq!(result.unwrap(), rect(100, 0, 150, 200));
 }
 
 // Regression test for https://github.com/harfbuzz/ttf-parser/issues/239. The `vstore` Top DICT
@@ -356,7 +378,7 @@ fn glyph_without_a_variation_store_outlines() {
     font.regions = None;
     let (result, path) = outline(&font.build());
 
-    assert_eq!(path, "M 100 0 L 150 50 ");
+    assert_eq!(path, "M 100 0 L 150 50 Z ");
     assert_eq!(result.unwrap(), rect(100, 0, 150, 50));
 }
 
@@ -393,7 +415,7 @@ fn blend_applies_region_deltas_to_its_operands() {
 
     let (result, path) = outline(&Cff2::new(vec![char_string]).build());
 
-    assert_eq!(path, "M 110 0 L 160 50 ");
+    assert_eq!(path, "M 110 0 L 160 50 Z ");
     assert_eq!(result.unwrap(), rect(110, 0, 160, 50));
 }
 
@@ -475,7 +497,7 @@ fn global_subroutine_chain_within_budget_outlines() {
     // The same depth without amplification is 8 invocations and must still work.
     let (result, path) = outline(&fanout_font(1, 8, false));
 
-    assert_eq!(path, "M 100 0 L 150 50 ");
+    assert_eq!(path, "M 100 0 L 150 50 Z ");
     assert_eq!(result.unwrap(), rect(100, 0, 150, 50));
 }
 
@@ -483,7 +505,7 @@ fn global_subroutine_chain_within_budget_outlines() {
 fn local_subroutine_chain_within_budget_outlines() {
     let (result, path) = outline(&fanout_font(1, 8, true));
 
-    assert_eq!(path, "M 100 0 L 150 50 ");
+    assert_eq!(path, "M 100 0 L 150 50 Z ");
     assert_eq!(result.unwrap(), rect(100, 0, 150, 50));
 }
 
