@@ -332,6 +332,10 @@ impl<'a> SingleAdjustment<'a> {
 /// A [`ValueRecord`] pairs set used by [`PairAdjustment`].
 #[derive(Clone, Copy)]
 pub struct PairSet<'a> {
+    // Full PairSet table. Device/VariationIndex offsets in ValueRecords are
+    // from the beginning of this table, not from the records array.
+    table_data: &'a [u8],
+    // Only the PairValueRecords array used for the binary search.
     data: &'a [u8],
     flags: (ValueFormatFlags, ValueFormatFlags),
     record_len: u8,
@@ -343,9 +347,10 @@ impl<'a> PairSet<'a> {
         let count = s.read::<u16>()?;
         // Max len is 34, so u8 is just enough.
         let record_len = (GlyphId::SIZE + flags.0.size() + flags.1.size()) as u8;
-        let data = s.read_bytes(usize::from(count) * usize::from(record_len))?;
+        let records = s.read_bytes(usize::from(count) * usize::from(record_len))?;
         Some(Self {
-            data,
+            table_data: data,
+            data: records,
             flags,
             record_len,
         })
@@ -399,8 +404,8 @@ impl<'a> PairSet<'a> {
         let mut s = Stream::new(record_data);
         s.skip::<GlyphId>();
         Some((
-            ValueRecord::parse(self.data, &mut s, self.flags.0)?,
-            ValueRecord::parse(self.data, &mut s, self.flags.1)?,
+            ValueRecord::parse(self.table_data, &mut s, self.flags.0)?,
+            ValueRecord::parse(self.table_data, &mut s, self.flags.1)?,
         ))
     }
 }
@@ -1000,5 +1005,42 @@ impl<'a> PositioningSubtable<'a> {
             Self::Context(t) => t.coverage(),
             Self::ChainContext(t) => t.coverage(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::parser::FromData;
+
+    #[test]
+    fn pair_set_resolves_device_offsets_from_pair_set_start() {
+        // PairSet with one record: second glyph 2, xAdvance -30, xAdvDevice at
+        // offset 8 (right after the records). Format 0x8000 VariationIndex.
+        let data: &[u8] = &[
+            0x00, 0x01, // pairValueCount
+            0x00, 0x02, // secondGlyph
+            0xFF, 0xE2, // xAdvance = -30
+            0x00, 0x08, // xAdvanceDevice offset from PairSet start
+            0x00, 0x00, // outerIndex
+            0x00, 0x00, // innerIndex
+            0x80, 0x00, // deltaFormat = VariationIndex
+        ];
+        let flags = (
+            ValueFormatFlags::parse(&[0x00, 0x44]).unwrap(), // xAdvance | xAdvanceDevice
+            ValueFormatFlags::parse(&[0x00, 0x00]).unwrap(),
+        );
+        let set = PairSet::parse(data, flags).unwrap();
+        let (v1, v2) = set.get(GlyphId(2)).unwrap();
+        assert_eq!(v1.x_advance, -30);
+        assert!(matches!(
+            v1.x_advance_device,
+            Some(Device::Variation(VariationDevice {
+                outer_index: 0,
+                inner_index: 0,
+            }))
+        ));
+        assert_eq!(v2.x_advance, 0);
+        assert!(v2.x_advance_device.is_none());
     }
 }

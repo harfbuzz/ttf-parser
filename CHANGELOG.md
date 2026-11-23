@@ -64,6 +64,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Documented every field of `RawFaceTables`.
 
 ### Fixed
+- (`GPOS`) Resolve PairPosFormat1 device/VariationIndex offsets from the
+  PairSet table start. Offsets were resolved from the records slice, so
+  every device field was dropped and variable pair kerning stayed at the
+  default.
 - (`CFF`) Bound the total number of subroutine invocations per glyph.
   `STACK_LIMIT` bounds nesting depth only, so work grew as fanout^depth:
   a 255-byte `CFF` table hung for over 30 seconds.
