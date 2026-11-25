@@ -89,8 +89,8 @@ impl<'a> Subtable4<'a> {
                         return None;
                     }
 
-                    let glyph_id = (glyph_array_value as i16).wrapping_add(id_delta);
-                    return u16::try_from(glyph_id).ok().map(GlyphId);
+                    let glyph_id = glyph_array_value.wrapping_add(id_delta as u16);
+                    return Some(GlyphId(glyph_id));
                 }
             } else {
                 start = index + 1;

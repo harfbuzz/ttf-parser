@@ -134,6 +134,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   guarantee `repr(Rust)` layout and randomization pushed them past the bound, so every debug
   build of every application using the flag panicked on a budget it could not influence.
   The bounds are now checked in this crate's own test suite instead.
+- (`cmap`) Preserve glyph IDs above 32767 in format 4 glyph index array lookups.
+  Thanks to [msl2246](https://github.com/msl2246).
 
 ## [0.25.1] - 2024-11-29
 ### Changed

@@ -258,6 +258,25 @@ mod format4 {
     }
 
     #[test]
+    fn indirect_delta_wraps_as_u16() {
+        let data = convert(&[
+            UInt16(4), UInt16(38), UInt16(0), // format, subtable size, language ID
+            UInt16(4), UInt16(4), UInt16(1), UInt16(0), // segment search parameters
+            UInt16(0x43), UInt16(0xFFFF), // end codes
+            UInt16(0), // reserved
+            UInt16(0x41), UInt16(0xFFFF), // start codes
+            Int16(-2), Int16(1), // deltas
+            UInt16(4), UInt16(0), // offsets into the glyph index array
+            UInt16(0x8003), UInt16(1), UInt16(5), // glyph index array
+        ]);
+
+        let subtable = cmap::Subtable4::parse(&data).unwrap();
+        assert_eq!(subtable.glyph_index(0x41), Some(GlyphId(0x8001)));
+        assert_eq!(subtable.glyph_index(0x42), Some(GlyphId(0xFFFF)));
+        assert_eq!(subtable.glyph_index(0x43), Some(GlyphId(3)));
+    }
+
+    #[test]
     fn unordered_chars_and_ids() {
         let data = convert(&[
             UInt16(4), // format
